@@ -1,12 +1,21 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import { definePrismaConfig } from '@prisma/cli-engine';
 import { defineConfig as ormConfig } from '@prisma/orm-postgres/config';
+
+config({ path: '.env.local' });
+
+const connection =
+  process.env['DIRECT_URL'] ?? process.env['DATABASE_URL'];
+
+if (!connection) {
+  throw new Error('Set DIRECT_URL or DATABASE_URL in .env.local or the environment.');
+}
 
 export default definePrismaConfig({
   orm: ormConfig({
     contract: "./src/prisma/contract.prisma",
     db: {
-      connection: process.env['DATABASE_URL']!,
+      connection,
     },
   }),
 });
