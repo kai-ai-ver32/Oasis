@@ -1,11 +1,39 @@
 import { randomUUID } from "node:crypto";
+import { getVerifiedUser } from "@/lib/auth/verified-user";
 import { db } from "@/prisma/db";
 
 export const runtime = "nodejs";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) {
+    return Response.json({ error: "Cross-origin requests are not allowed." }, { status: 403 });
+  }
+
+  let user;
   try {
-    const user = await db.transaction(async (tx) => {
+    user = await getVerifiedUser();
+  } catch {
+    console.error("Supabase user verification failed.");
+    return Response.json(
+      { error: "Could not verify the current user." },
+      { status: 503 },
+    );
+  }
+
+  if (!user) {
+    return Response.json({ error: "Not signed in" }, { status: 401 });
+  }
+
+  if (user.role !== "admin") {
+    return Response.json(
+      { error: "Not an admin" },
+      { status: 403 },
+    );
+  }
+
+  try {
+    const sampleUser = await db.transaction(async (tx) => {
       const email = `prisma-test-${randomUUID()}@example.test`;
       const created = await tx.orm.public.User.create({
         email,
@@ -27,7 +55,7 @@ export async function POST() {
       return retrieved;
     });
 
-    return Response.json({ user, deleted: true });
+    return Response.json({ user: sampleUser, deleted: true });
   } catch (cause) {
     const details =
       cause instanceof Error
